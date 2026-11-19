@@ -1,7 +1,6 @@
 {
   "name": "dsh-dictation",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Model-independent, durable voice dictation for DeepSeek Harness",
   "repository": { "type": "git", "url": "https://github.com/xieyuschen/dsh-dictation.git" },
