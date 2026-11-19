@@ -1,0 +1,17 @@
+node_modules/
+client.js
+*.tgz
+*.zip
+*.wav
+*.mp3
+*.ogg
+*.webm
+*.png
+*.jpg
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+coverage/
+.DS_Store
