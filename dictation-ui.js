@@ -216,6 +216,7 @@ function DictationConfigPage(props){
 
   const remoteAsr=snapshot?.value?.asr||{};
   const remoteEnabled=Boolean(remoteAsr.enabled);
+  const remoteProtocol=remoteAsr.protocol==='deepgram'?'deepgram':'compatible';
   const remoteEndpoint=remoteAsr.endpoint||'';
   const remoteModel=remoteAsr.model||'';
   const remoteHostHeader=remoteAsr.hostHeader||'';
@@ -233,6 +234,7 @@ function DictationConfigPage(props){
 
   const [draft,setDraft]=React.useState({
     enabled:remoteEnabled,
+    protocol:remoteProtocol,
     endpoint:remoteEndpoint,
     model:remoteModel,
     apiKey:'',
@@ -251,6 +253,7 @@ function DictationConfigPage(props){
     if(!dirty){
       setDraft({
         enabled:remoteEnabled,
+        protocol:remoteProtocol,
         endpoint:remoteEndpoint,
         model:remoteModel,
         apiKey:'',
@@ -262,7 +265,7 @@ function DictationConfigPage(props){
         advancedMode:remoteAdvancedMode,
       });
     }
-  },[remoteEnabled,remoteEndpoint,remoteModel,remoteHostHeader,remoteTimeoutMs,remoteProviderId,remoteProviderName,remoteLanguages,remoteAdvancedMode,dirty]);
+  },[remoteEnabled,remoteProtocol,remoteEndpoint,remoteModel,remoteHostHeader,remoteTimeoutMs,remoteProviderId,remoteProviderName,remoteLanguages,remoteAdvancedMode,dirty]);
 
   const updateField=(key,val)=>{
     setDraft(prev=>({...prev,[key]:val}));
@@ -273,6 +276,7 @@ function DictationConfigPage(props){
   const handleReset=()=>{
     setDraft({
       enabled:remoteEnabled,
+      protocol:remoteProtocol,
       endpoint:remoteEndpoint,
       model:remoteModel,
       apiKey:'',
@@ -291,17 +295,18 @@ function DictationConfigPage(props){
     if(e)e.preventDefault();
     if(saving)return;
 
+    const isDeepgram=draft.protocol==='deepgram';
     if(draft.enabled){
-      if(!draft.endpoint.trim()){
-        setFeedback({type:'error',text:'启用时必须填写转写服务接口地址 (Endpoint)'});
+      if(!isDeepgram&&!draft.endpoint.trim()){
+        setFeedback({type:'error',text:'启用 compatible 协议时必须填写转写服务接口地址 (Endpoint)'});
         return;
       }
-      if(!draft.model.trim()){
-        setFeedback({type:'error',text:'启用时必须填写模型标识 (Model)'});
-        return;
-      }
-      if(!/^https?:\/\//i.test(draft.endpoint.trim())){
+      if(draft.endpoint.trim()&&!/^https?:\/\//i.test(draft.endpoint.trim())){
         setFeedback({type:'error',text:'转写接口地址必须以 http:// 或 https:// 开头'});
+        return;
+      }
+      if(!isDeepgram&&!draft.model.trim()){
+        setFeedback({type:'error',text:'启用 compatible 协议时必须填写模型标识 (Model)'});
         return;
       }
     }
@@ -313,6 +318,7 @@ function DictationConfigPage(props){
 
     const ops=[
       {op:'set',path:['asr','enabled'],value:Boolean(draft.enabled)},
+      {op:'set',path:['asr','protocol'],value:isDeepgram?'deepgram':'compatible'},
       {op:'set',path:['asr','endpoint'],value:draft.endpoint.trim()},
       {op:'set',path:['asr','model'],value:draft.model.trim()},
       {op:'set',path:['asr','hostHeader'],value:draft.hostHeader.trim()},
@@ -392,30 +398,44 @@ function DictationConfigPage(props){
       h('span',{className:'dsh-dictation-hint'},draft.enabled?'已开启（将在 speech 服务目录中注册适配器）':'已关闭（默认沿用 DSH 既有提供方）')
     ),
     h('div',{className:'dsh-dictation-field'},
+      h('label',{className:'dsh-dictation-label',htmlFor:'dictation-config-protocol'},'请求协议 (Protocol)'),
+      h('select',{
+        id:'dictation-config-protocol',
+        className:'dsh-dictation-input',
+        value:draft.protocol,
+        disabled:isReadOnly,
+        onChange:e=>updateField('protocol',e.target.value)
+      },
+        h('option',{value:'compatible'},'Compatible (OpenAI-compatible multipart /v1/audio/transcriptions)'),
+        h('option',{value:'deepgram'},'Deepgram (/v1/listen)')
+      ),
+      h('span',{className:'dsh-dictation-hint'},draft.protocol==='deepgram'?'使用 Deepgram 预录音接口，Endpoint 默认 https://api.deepgram.com/v1/listen，模型默认 nova-3，API Key 必填。':'使用 OpenAI 兼容 multipart 音频转写接口与 JSON text 响应。')
+    ),
+    h('div',{className:'dsh-dictation-field'},
       h('label',{className:'dsh-dictation-label',htmlFor:'dictation-config-endpoint'},'转写接口地址 (Endpoint)'),
       h('input',{
         id:'dictation-config-endpoint',
         className:'dsh-dictation-input',
         type:'text',
-        placeholder:'https://asr.example.com/v1/audio/transcriptions',
+        placeholder:draft.protocol==='deepgram'?'留空默认 https://api.deepgram.com/v1/listen':'https://asr.example.com/v1/audio/transcriptions',
         value:draft.endpoint,
         disabled:isReadOnly,
         onChange:e=>updateField('endpoint',e.target.value)
       }),
-      h('span',{className:'dsh-dictation-hint'},'OpenAI 兼容的 audio/transcriptions HTTP(S) 完整接口地址。')
+      h('span',{className:'dsh-dictation-hint'},draft.protocol==='deepgram'?'Deepgram 协议下可留空，留空时默认使用 https://api.deepgram.com/v1/listen。':'OpenAI 兼容的 audio/transcriptions HTTP(S) 完整接口地址。')
     ),
     h('div',{className:'dsh-dictation-field'},
       h('label',{className:'dsh-dictation-label',htmlFor:'dictation-config-model'},'模型标识 (Model)'),
       h('input',{
         id:'dictation-config-model',
         className:'dsh-dictation-input',
-        type:typeof draft.model==='string'?'text':'text',
-        placeholder:'compatible-asr-model',
+        type:'text',
+        placeholder:draft.protocol==='deepgram'?'留空默认 nova-3':'compatible-asr-model',
         value:draft.model,
         disabled:isReadOnly,
         onChange:e=>updateField('model',e.target.value)
       }),
-      h('span',{className:'dsh-dictation-hint'},'后端推理服务接受的模型名称。')
+      h('span',{className:'dsh-dictation-hint'},draft.protocol==='deepgram'?'Deepgram 协议下可留空，留空时默认使用 nova-3。':'后端推理服务接受的模型名称。')
     ),
     h('div',{className:'dsh-dictation-field'},
       h('label',{className:'dsh-dictation-label',htmlFor:'dictation-config-apikey'},'鉴权密钥 (API Key)'),
@@ -543,13 +563,13 @@ function registerUi(ctx){
 
   ctx.slots.inject('plugins.row.config',()=>ctx.slots.register({
     name:'plugins.row.config',
-    key:'dsh-dictation#ui-dictation',
+    key:'@xieyuschen/dsh-dictation#ui-dictation',
     locale:'dictation',
   },ConfigPage));
 
   ctx.slots.inject('plugins.bundle.config',()=>ctx.slots.register({
     name:'plugins.bundle.config',
-    key:'dsh-dictation',
+    key:'@xieyuschen/dsh-dictation',
     locale:'dictation',
   },ConfigPage));
 }

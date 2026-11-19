@@ -1,5 +1,5 @@
 {
-  "name": "dsh-dictation",
+  "name": "@xieyuschen/dsh-dictation",
   "version": "0.1.0",
   "type": "module",
   "description": "Model-independent, durable voice dictation for DeepSeek Harness",
