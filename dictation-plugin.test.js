@@ -44,7 +44,7 @@ test('native Config exposes one volatile object, disabled defaults and schema-de
   assert.equal(typeof resolved.asr.get, 'function');
   assert.equal(resolved.asr.subscribe, undefined);
   assert.deepEqual(resolved.asr.get(), {
-    enabled: false, endpoint: '', model: '', apiKey: '', hostHeader: '', timeoutMs: 180000,
+    enabled: false, protocol: 'compatible', endpoint: '', model: '', apiKey: '', hostHeader: '', timeoutMs: 180000,
     providerId: 'dsh-dictation-compatible', providerName: 'Compatible ASR', languages: ['auto'],
     advancedMode: false,
   });

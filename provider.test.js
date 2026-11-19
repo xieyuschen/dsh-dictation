@@ -188,3 +188,39 @@ test('chunked response overflow is bounded across successive network writes', as
   const { provider } = await mock(t, (req, res) => { res.write('x'.repeat(32768)); res.write('x'.repeat(32768)); res.end('x'); });
   await assert.rejects(provider.transcribe({ audio: wav() }, signal()), /64 KiB/);
 });
+
+const dgResult = transcript => JSON.stringify({ results: { channels: [{ alternatives: [{ transcript }] }] } });
+
+test('deepgram sends raw WAV with Token auth, model and multi language for auto, then parses the transcript', async t => {
+  let received; const credential = ['test-only', 'deepgram-key'].join('-');
+  const { provider, endpoint } = await mock(t, async (req, res) => {
+    received = { ...(await requestData(req)), url: req.url }; res.end(dgResult('  synthetic transcript  '));
+  }, { protocol: 'deepgram', model: 'nova-3', apiKey: credential, languages: ['auto', 'zh'] });
+  const audio = wav(); const result = await provider.transcribe({ audio }, signal());
+  assert.equal(result.text, 'synthetic transcript'); assert.equal(result.audioSeconds, 1);
+  const query = new URL(received.url, 'http://localhost');
+  assert.equal(query.pathname, new URL(endpoint).pathname);
+  assert.equal(query.searchParams.get('model'), 'nova-3'); assert.equal(query.searchParams.get('language'), 'multi');
+  assert.equal(query.searchParams.get('smart_format'), 'true');
+  assert.equal(received.headers.authorization, `Token ${credential}`);
+  assert.equal(received.headers['content-type'], 'audio/wav');
+  assert.deepEqual(received.bytes, audio);
+  await provider.transcribe({ audio, language: 'zh' }, signal());
+  assert.equal(new URL(received.url, 'http://localhost').searchParams.get('language'), 'zh');
+});
+
+test('deepgram defaults the endpoint and model but requires an API key', () => {
+  assert.doesNotThrow(() => createProvider({ protocol: 'deepgram', apiKey: 'k' }));
+  assert.throws(() => createProvider({ protocol: 'deepgram' }), /Invalid ASR API key/);
+  assert.throws(() => createProvider({ protocol: 'deepgram', apiKey: 'k', endpoint: 'https://api.deepgram.com/v1/listen?x=1' }), /endpoint/);
+  assert.throws(() => createProvider(base({ protocol: 'unknown' })), /Invalid ASR protocol/);
+});
+
+test('deepgram response without a transcript is a visible error, not an empty result', async t => {
+  const { provider } = await mock(t, (req, res) => { req.resume(); res.end('{"results":{"channels":[]}}'); }, { protocol: 'deepgram', apiKey: 'k' });
+  await assert.rejects(provider.transcribe({ audio: wav() }, signal()), /missing transcription text/);
+});
+
+test('multi is an accepted language code', () => {
+  assert.deepEqual(createProvider(base({ languages: ['auto', 'multi'] })).info.languages, ['auto', 'multi']);
+});

@@ -5,9 +5,10 @@ export const inject = ['speechToText'];
 export const Config = Schema.object({
   asr: Schema.object({
     enabled: Schema.boolean().default(false).description('Enable the optional compatible ASR adapter'),
-    endpoint: Schema.string().default('').description('Complete server-side transcription endpoint'),
-    model: Schema.string().default('').description('Model accepted by the configured server'),
-    apiKey: Schema.string().role('secret').default('').description('Optional server-side bearer credential'),
+    protocol: Schema.union(['compatible', 'deepgram']).default('compatible').description('Request protocol: OpenAI-style multipart (compatible) or Deepgram /v1/listen'),
+    endpoint: Schema.string().default('').description('Complete server-side transcription endpoint (optional for deepgram; defaults to api.deepgram.com)'),
+    model: Schema.string().default('').description('Model accepted by the configured server (deepgram defaults to nova-3)'),
+    apiKey: Schema.string().role('secret').default('').description('Server-side credential: Bearer token (compatible, optional) or Deepgram API key (required)'),
     hostHeader: Schema.string().default('').description('Optional trusted gateway Host header override'),
     timeoutMs: Schema.number().min(50).max(300000).step(1).default(180000).description('Request timeout in milliseconds'),
     providerId: Schema.string().min(1).default('dsh-dictation-compatible'),

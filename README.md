@@ -29,9 +29,10 @@ Durable, backend-independent voice dictation for DeepSeek Harness; inserts into 
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
 | `asr.enabled` | `false` | 启用注册；启用时必须提供合法 endpoint 与 model |
-| `asr.endpoint` | 空 | 完整 HTTP(S) 转写 URL，无用户凭据、查询参数或片段；建议 HTTPS |
-| `asr.model` | 空 | 后端接受的模型标识，不推断或补全 |
-| `asr.apiKey` | 空 | 可选 Bearer 凭据；schema 标记为 secret，设置远程读取会脱敏 |
+| `asr.protocol` | `compatible` | 请求协议：`compatible`（multipart + JSON `text`）或 `deepgram`（见下） |
+| `asr.endpoint` | 空 | 完整 HTTP(S) 转写 URL，无用户凭据、查询参数或片段；建议 HTTPS。`deepgram` 留空时用 `https://api.deepgram.com/v1/listen` |
+| `asr.model` | 空 | 后端接受的模型标识，不推断或补全。`deepgram` 留空时用 `nova-3` |
+| `asr.apiKey` | 空 | 可选 Bearer 凭据（`deepgram` 下为必填 API key，以 `Token` 方案发送）；schema 标记为 secret，设置远程读取会脱敏 |
 | `asr.hostHeader` | 空 | 可选可信网关的 Host 覆盖；不改变连接地址、TLS 校验对象或 SNI |
 | `asr.timeoutMs` | `180000` | 单次请求超时，整数 50–300000 毫秒 |
 | `asr.providerId` | `dsh-dictation-compatible` | 注册标识，不能与其他提供方重复 |
@@ -50,7 +51,17 @@ Durable, backend-independent voice dictation for DeepSeek Harness; inserts into 
 }
 ```
 
-适配器只实现兼容的 multipart 音频转写请求与 JSON `text` 响应，不支持任意供应商私有协议。音频必须为本插件生成的 16 kHz 单声道 PCM16 WAV；适配器单请求上限 120 秒，听写界面仍按约 28–30 秒分段。实际模型、语言、网关和服务兼容性须另外验收。
+### Deepgram
+
+设置 `asr.protocol` 为 `deepgram` 即可使用 Deepgram 预录音接口（`POST /v1/listen`）：WAV 作为原始请求体发送，`Authorization: Token <apiKey>`，模型与语言通过查询参数传递，并启用 `smart_format`。最小配置只需 key：
+
+```json
+{ "asr": { "enabled": true, "protocol": "deepgram", "apiKey": "...", "providerId": "dsh-dictation-deepgram", "providerName": "Deepgram", "languages": ["auto", "zh", "en"] } }
+```
+
+`auto` 会映射为 `language=multi`，因为实测 `detect_language` 对普通话会返回空文本；指定具体语言码（如 `zh`、`en`）则原样传递。`multi` 本身也是可声明的语言码。语言与模型的实际支持以 Deepgram 为准。
+
+除 `deepgram` 外，适配器只实现兼容的 multipart 音频转写请求与 JSON `text` 响应，不支持任意供应商私有协议。音频必须为本插件生成的 16 kHz 单声道 PCM16 WAV；适配器单请求上限 120 秒，听写界面仍按约 28–30 秒分段。实际模型、语言、网关和服务兼容性须另外验收。
 
 设置表单保存可热更新：相同提供方标识、名称和语言列表下，更换 endpoint、model、凭据、Host 或超时只影响后续请求；在途请求保留启动时的配置快照。停用或变更标识、名称、语言列表会先注销旧提供方，取消并等待其在途工作，再注册新提供方。启用时先校验设置；错误会明确返回，但不承诺整个宿主配置保存或注册失败可原子回滚。这里描述的是代码及合成集成测试行为，**不是已部署或已完成真实 GUI 验收的声明**。
 
