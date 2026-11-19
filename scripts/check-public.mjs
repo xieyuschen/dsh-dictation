@@ -45,7 +45,7 @@ const rules = [
 ];
 // Only these literal public/test URL hosts are expected in this small project.
 // A new URL needs review, not an automatic broad exception for its entire file.
-const allowedUrlHosts = new Set(['github.com', 'registry.npmjs.org', 'dictation.test', 'www.w3.org', 'opencollective.com', 'asr.example.com', 'example.com', 'localhost']);
+const allowedUrlHosts = new Set(['github.com', 'registry.npmjs.org', 'dictation.test', 'www.w3.org', 'opencollective.com', 'asr.example.com', 'example.com', 'localhost', 'api.deepgram.com']);
 async function scan(name) {
   const path = resolve(root, name);
   const info = await lstat(path);
