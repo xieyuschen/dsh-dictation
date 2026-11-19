@@ -1,0 +1,7 @@
+# Replace DSH's native microphone UI, but retain the existing speech provider,
+# language configuration, and model preparation settings.
+- id: ui-voice-input
+  disabled: true
+- insert:
+    - id: ui-dictation
+      name: dsh-dictation
