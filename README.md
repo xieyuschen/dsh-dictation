@@ -1,100 +1,31 @@
-# dsh-dictation
+# @xieyuschen/dsh-dictation
 
-Durable, backend-independent voice dictation for DeepSeek Harness; inserts into a draft and never sends messages automatically.
+Durable, backend-independent voice dictation plugin for DeepSeek Harness (DSH). Records audio locally into IndexedDB, transcribes via DSH's `speech` service (or an optional built-in OpenAI-compatible / Deepgram adapter), and inserts text into the message draft without ever sending automatically.
 
-为 DeepSeek Harness（DSH）提供可恢复的连续语音听写。浏览器使用 DSH speech 服务；默认沿用现有提供方，也可按需启用本插件的兼容 ASR 服务端适配器。不内置模型、推理服务器或部署凭据。
+## Features
 
-> **许可协议：MIT**（见 [LICENSE](<LICENSE>)）。当前验证目标为 DSH **0.2.2-rc.1**；第三方代码的许可独立保留，见 [第三方声明](<THIRD_PARTY_NOTICES.md>)。
+- **Simple click-to-record default**: Click the microphone button to start, click again to stop and immediately transcribe into your draft.
+- **Durable local buffering**: Audio is persisted in IndexedDB before upload, with bounded retries on transient failures.
+- **Optional Advanced Mode**: Enable in plugin settings to unlock ~28–30s automatic segmentation, multi-tab Web Locks handover, provider/language/mic selection, and recording recovery/export via right-click or long-press.
+- **Built-in Plugin Manager UI**: Configure OpenAI-compatible ASR endpoints or Deepgram (`/v1/listen`) directly from DSH **Plugins → Durable dictation**.
 
-## 使用与行为
+## Installation
 
-- 单击麦克风开始，再次单击停止并保存尾段；右键、触屏长按或键盘菜单可打开恢复与导出功能。识别文字只进入草稿，发送仍由用户手动确认。
-- 连续采集转换为 16 kHz、单声道、PCM16 WAV；约 28 秒后优先在静音处切分，连续讲话最迟约 30 秒切分。浏览器暂停、后台限制或设备休眠可能中断实际采集。
-- 音频先提交到浏览器 IndexedDB，再串行识别。可重试错误最多自动尝试 3 次；失败片段保留音频，阻塞该录音后续片段，支持手动重试。
-- 正在录制的尾段约每 1 秒保存检查点；崩溃通常可能损失最近约 1 秒，繁忙、休眠或后台限制可能更久，不保证断电不丢失。
-- 同源页面通过 Web Locks 限制为一个采集及识别工作者。空闲录音页面可合作交接所有权，必要时取消并重新排队其在途识别请求；正在录音或保存的页面拒绝接管。页面关闭后，其他页面会尝试接管。这不是跨浏览器、跨设备或服务端的全局锁。
-- 默认使用 DSH speech 的当前默认提供方；高级菜单可从服务目录显式选择提供方和支持的语言。每次录音保留选择以便恢复；未显式固定提供方时，排队请求仍会跟随宿主默认配置的变化，不代表已快照固定某个模型。提供方实际可用性、语言能力和模型识别质量需单独验证，**不保证任意提供方或模型均兼容**。
-- 刷新恢复不会自动重复写入历史转写。草稿编辑冲突会暂停自动插入；手动恢复前请检查已有草稿。草稿持久化与录音投递标记不是一个原子事务，极端崩溃后需人工核对。
+1. Open **Plugins → Add plugin** in DeepSeek Harness.
+2. Enter `@xieyuschen/dsh-dictation` and install.
+3. Enable the plugin and reload open browser tabs.
 
-## 隐私与保存
+## Configuration
 
-**音频并非只留在本地。** 浏览器将音频发送到配置的 DSH 服务器，再由该服务器转发到所配置的 ASR 提供方；它可能是第三方服务。部署者负责告知用户数据接收方、传输保护和保留政策。
+Open **Plugins → Installed plugins → Durable dictation** in DSH to configure:
 
-浏览器保存音频、明文转写和录音元数据，插件不额外加密；录音不会自动删除。用户可查看、复制、导出和明确删除。清理站点数据、隐私模式退出或磁盘故障会丢失本地录音。出现保存失败提示时，先导出内存中的未保存音频，不要刷新或关闭页面。详见 [安全与隐私说明](<SECURITY.md>)。
+- **Enable Compatible ASR Adapter**: Register the plugin's server-side ASR provider in DSH's `speech` catalog.
+- **Protocol**: Choose `compatible` (OpenAI-compatible `multipart/form-data` `/v1/audio/transcriptions`) or `deepgram` (`POST /v1/listen`).
+- **Endpoint / Model / API Key**: For `deepgram`, only `apiKey` is required (`endpoint` defaults to `https://api.deepgram.com/v1/listen` and `model` defaults to `nova-3`).
+- **Advanced Mode**: Off by default for simple one-click start/stop dictation; turn on to enable segmented recording and the right-click/long-press recovery panel.
 
-## 可选的兼容 ASR 适配器
+See [docs/configuration.md](docs/configuration.md) for all configuration fields and protocol details, and [docs/architecture.md](docs/architecture.md) for durability, privacy, and local development notes.
 
-默认 `asr.enabled=false`，不注册额外提供方。管理员可在 DSH 的插件设置表单编辑 `asr.*`；这些是**服务端设置，不是浏览器录音菜单中的客户端配置**。启用后，提供方出现在 speech 目录中，用户可在听写高级菜单显式选择；插件不自动修改宿主默认提供方或模型，也不要求停用现有提供方。
+## License
 
-| 字段 | 默认值 | 含义 |
-| --- | --- | --- |
-| `asr.enabled` | `false` | 启用注册；启用时必须提供合法 endpoint 与 model |
-| `asr.protocol` | `compatible` | 请求协议：`compatible`（multipart + JSON `text`）或 `deepgram`（见下） |
-| `asr.endpoint` | 空 | 完整 HTTP(S) 转写 URL，无用户凭据、查询参数或片段；建议 HTTPS。`deepgram` 留空时用 `https://api.deepgram.com/v1/listen` |
-| `asr.model` | 空 | 后端接受的模型标识，不推断或补全。`deepgram` 留空时用 `nova-3` |
-| `asr.apiKey` | 空 | 可选 Bearer 凭据（`deepgram` 下为必填 API key，以 `Token` 方案发送）；schema 标记为 secret，设置远程读取会脱敏 |
-| `asr.hostHeader` | 空 | 可选可信网关的 Host 覆盖；不改变连接地址、TLS 校验对象或 SNI |
-| `asr.timeoutMs` | `180000` | 单次请求超时，整数 50–300000 毫秒 |
-| `asr.providerId` | `dsh-dictation-compatible` | 注册标识，不能与其他提供方重复 |
-| `asr.providerName` | `Compatible ASR` | speech 目录的显示名称 |
-| `asr.languages` | `["auto"]` | 声明支持的语言代码，1–32 个互不重复的代码；不自动证明后端支持 |
-
-公开示例（不含凭据；示例地址不是可用的公共服务）：
-
-```json
-{
-  "asr": {
-    "enabled": true,
-    "endpoint": "https://asr.example.com/v1/audio/transcriptions",
-    "model": "your-model"
-  }
-}
-```
-
-### Deepgram
-
-设置 `asr.protocol` 为 `deepgram` 即可使用 Deepgram 预录音接口（`POST /v1/listen`）：WAV 作为原始请求体发送，`Authorization: Token <apiKey>`，模型与语言通过查询参数传递，并启用 `smart_format`。最小配置只需 key：
-
-```json
-{ "asr": { "enabled": true, "protocol": "deepgram", "apiKey": "...", "providerId": "dsh-dictation-deepgram", "providerName": "Deepgram", "languages": ["auto", "zh", "en"] } }
-```
-
-`auto` 会映射为 `language=multi`，因为实测 `detect_language` 对普通话会返回空文本；指定具体语言码（如 `zh`、`en`）则原样传递。`multi` 本身也是可声明的语言码。语言与模型的实际支持以 Deepgram 为准。
-
-除 `deepgram` 外，适配器只实现兼容的 multipart 音频转写请求与 JSON `text` 响应，不支持任意供应商私有协议。音频必须为本插件生成的 16 kHz 单声道 PCM16 WAV；适配器单请求上限 120 秒，听写界面仍按约 28–30 秒分段。实际模型、语言、网关和服务兼容性须另外验收。
-
-设置表单保存可热更新：相同提供方标识、名称和语言列表下，更换 endpoint、model、凭据、Host 或超时只影响后续请求；在途请求保留启动时的配置快照。停用或变更标识、名称、语言列表会先注销旧提供方，取消并等待其在途工作，再注册新提供方。启用时先校验设置；错误会明确返回，但不承诺整个宿主配置保存或注册失败可原子回滚。这里描述的是代码及合成集成测试行为，**不是已部署或已完成真实 GUI 验收的声明**。
-
-真实部署地址、Host、模型选择和密钥应仅写入私有运行配置，不放入本仓库、测试、截图或发布材料。管理员设置界面会显示非秘密配置；只有 API key 具有 secret 脱敏语义，不能把所有服务端设置都视为对浏览器隐藏。
-
-## 本地准备与检查
-
-需要 Node.js 24（CI 使用此版本）、npm、支持 HTTPS/安全上下文与麦克风权限的现代浏览器，以及已配置 speech 服务的兼容 DSH。浏览器测试只使用合成音频与模拟 ASR，不需要真实录音、账号或私有服务器。
-
-```sh
-npm ci --ignore-scripts
-npm test
-npx playwright install chromium
-npm run test:browser
-npm run build
-npm run check:release
-npm pack --dry-run --ignore-scripts
-```
-
-`check:release` 重跑单元测试、浏览器测试、构建和敏感内容检查。检查器同时检查仓库文件和 npm 包清单，失败项必须人工核实；通过不代表正式的数据防泄漏审计。首次准备 Linux CI 镜像时，Playwright 可能还需要安装系统依赖。
-
-构建从本项目锁定的开发依赖解析 DSH 公共 Remote 元数据，不依赖某台机器的安装路径。React 和 Zod 在运行时由 DSH Web 宿主提供；开发依赖覆盖不能修复宿主中的漏洞，部署者仍须及时采用安全且兼容的 DSH 更新。
-
-## 本地安装与停用
-
-在 DSH 插件管理界面使用受支持的“安装本地 Bundle”流程，选择完成构建的本地项目目录；若当前界面不提供该入口，请参照对应 DSH 版本的管理文档，不要直接修改运行中的 profile 或安装目录。本仓库不自动安装、不自动部署，也不授权公开发布。
-
-Bundle 禁用原生语音输入界面并注册本插件；可选 ASR 适配器默认关闭，不修改默认 speech 提供方或模型。安装后刷新现有页面；停用后可恢复原生界面。停用会停止当前采集和识别工作者，并注销本插件启用的适配器，但不会自动删除 IndexedDB 录音，重要录音请提前导出。
-
-本项目使用独立的 IndexedDB 命名空间，不自动迁移其他旧插件的录音，也不承诺导入兼容。更换插件前请在原插件中导出需要保留的音频和文字。
-
-## 验证范围与贡献
-
-浏览器测试覆盖本地持久化、音频分段、重试和多标签页生命周期等实现行为；**合成音频与模拟 ASR 的通过结果不证明真实模型准确率、真实麦克风声学效果、移动设备锁屏行为或任意服务端兼容性**。发布前还需完成面向实际部署的验收。
-
-提交前请阅读 [贡献指南](<CONTRIBUTING.md>)。不要提交真实录音、截图、凭据、个人数据或私有部署信息。
+[MIT](LICENSE) — third-party notices in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

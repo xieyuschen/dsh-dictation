@@ -4,4 +4,4 @@
   disabled: true
 - insert:
     - id: ui-dictation
-      name: dsh-dictation
+      name: "@xieyuschen/dsh-dictation"
