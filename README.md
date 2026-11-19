@@ -4,7 +4,7 @@ Durable, backend-independent voice dictation for DeepSeek Harness; inserts into 
 
 为 DeepSeek Harness（DSH）提供可恢复的连续语音听写。浏览器使用 DSH speech 服务；默认沿用现有提供方，也可按需启用本插件的兼容 ASR 服务端适配器。不内置模型、推理服务器或部署凭据。
 
-> **发布状态：准备中。** 仅 DSH **0.2.2-rc.1** 是当前验证目标；不承诺其他版本兼容。项目自身许可证尚待所有者决定，目前标记为 `UNLICENSED`、禁止 npm 发布。不要将本仓库视为已授予开源使用许可，也不要在未经授权时推送或发布。第三方代码的许可独立保留，见 [第三方声明](<THIRD_PARTY_NOTICES.md>)。
+> **许可协议：MIT**（见 [LICENSE](<LICENSE>)）。当前验证目标为 DSH **0.2.2-rc.1**；第三方代码的许可独立保留，见 [第三方声明](<THIRD_PARTY_NOTICES.md>)。
 
 ## 使用与行为
 

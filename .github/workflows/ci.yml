@@ -27,6 +27,8 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: Isolated browser tests with simulated ASR
+        env:
+          PLAYWRIGHT_DISABLE_SANDBOX: '1'
         run: npm run test:browser
       - name: Build classic DSH client
         run: npm run build

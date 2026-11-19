@@ -7,9 +7,9 @@
   "repository": { "type": "git", "url": "https://github.com/xieyuschen/dsh-dictation.git" },
   "bugs": { "url": "https://github.com/xieyuschen/dsh-dictation/issues" },
   "homepage": "https://github.com/xieyuschen/dsh-dictation#readme",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "exports": { ".": "./index.js", "./client": "./client.js", "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg" },
-  "files": ["index.js", "provider.js", "client.js", "cordis.patch.yml", "locale/en.json", "locale/zh.json", "icon.svg", "README.md", "SECURITY.md", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md"],
+  "files": ["index.js", "provider.js", "client.js", "cordis.patch.yml", "locale/en.json", "locale/zh.json", "icon.svg", "LICENSE", "README.md", "SECURITY.md", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md"],
   "scripts": {
     "build": "node build-client.mjs",
     "test": "node --test dictation-*.test.js provider.test.js",
