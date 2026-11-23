@@ -48,6 +48,12 @@ function DictationInput({sessionId,inputActions,locked,onActiveChange,service,co
   React.useEffect(()=>{if(service.owner)setMessage(value=>value===service.clearedOwnershipError?'':value);},[service.owner]);
   session.current=String(sessionId);
   React.useEffect(()=>service.subscribe(()=>setRevision(x=>x+1)),[service]);
+  React.useEffect(()=>{
+    if(!advancedMode&&(service.blocked||service.unsaved.length>0)){
+      setMessage('本地保存失败，录音已停止。');
+      service.discardUnsaved().catch(()=>{});
+    }
+  },[advancedMode,revision,service]);
   React.useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(t);},[]);
   React.useEffect(()=>{
     onActiveChange(open);return()=>onActiveChange(false);
@@ -120,9 +126,9 @@ function DictationInput({sessionId,inputActions,locked,onActiveChange,service,co
   const unavailableReason=locked?'当前会话暂时不可编辑':busy?'正在处理上一项操作':service.blocked?(service.error||'本地保存失败，请先下载未保存录音'):service.closing?'听写正在重新加载':!service.ready?'正在准备听写':service.stopping?'正在保存录音，请稍候':'';
   const unavailable=!!unavailableReason;
   const label=service.stopping?'正在保存录音':service.starting?'取消录音启动':active?'结束录音':'开始录音';
-  const emergency=service.unsaved.length>0;
+  const emergency=advancedMode&&service.unsaved.length>0;
   const feedback=message||service.error;
-  const warning=emergency?'录音未保存，请立即下载，勿刷新。':service.blocked?(advancedMode?'保存失败，请勿刷新；右键查看详情。':'本地保存失败，请勿刷新。'):feedback?(/permission|notallowed|权限/i.test(feedback)?'无法使用麦克风，请检查权限。':/notfound|找不到|未找到/i.test(feedback)?'未找到麦克风，请检查连接。':/草稿已编辑/.test(feedback)?'草稿已编辑，识别文字已保留。':feedback.length>90?feedback.slice(0,89)+'…':feedback):failed?(advancedMode?'有录音未识别，右键或长按处理。':'识别失败：'+(latestFailedError?(latestFailedError.length>60?latestFailedError.slice(0,59)+'…':latestFailedError):'请检查语音服务配置')):'';
+  const warning=emergency?'录音未保存，请立即下载，勿刷新。':service.blocked?(advancedMode?'保存失败，请勿刷新；右键查看详情。':'本地保存失败，录音已停止。'):feedback?(/permission|notallowed|权限/i.test(feedback)?'无法使用麦克风，请检查权限。':/notfound|找不到|未找到/i.test(feedback)?'未找到麦克风，请检查连接。':/草稿已编辑/.test(feedback)?'草稿已编辑，识别文字已保留。':feedback.length>90?feedback.slice(0,89)+'…':feedback):failed?(advancedMode?'有录音未识别，右键或长按处理。':'识别失败：'+(latestFailedError?(latestFailedError.length>60?latestFailedError.slice(0,59)+'…':latestFailedError):'请检查语音服务配置')):'';
   const cancelGesture=()=>{clearTimeout(gesture.current.timer);gesture.current.timer=null;};
   const showAdvanced=()=>{if(!advancedMode)return;cancelGesture();setOpen(true);navigator.mediaDevices?.enumerateDevices?.().then(all=>setDevices(all.filter(d=>d.kind==='audioinput'))).catch(()=>{});};
   const toggle=()=>{
