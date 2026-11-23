@@ -5,11 +5,14 @@ const h=React.createElement;
 const boxStyle={display:'flex',flexDirection:'column',gap:8,width:'100%',maxWidth:720,padding:10,border:'1px solid var(--border-color, #7776)',borderRadius:8,fontSize:13};
 const rowStyle={display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'};
 const smallButton={padding:'4px 8px',border:'1px solid #8886',borderRadius:5,background:'transparent',color:'inherit',cursor:'pointer'};
+const iconButton={...smallButton,display:'inline-flex',alignItems:'center',justifyContent:'center',width:28,height:28,padding:0};
 const dictationMicStyle={display:'inline-flex',alignItems:'center',justifyContent:'center',position:'relative',flexShrink:0,width:36,height:36,padding:0,border:'1px solid transparent',borderRadius:'50%',background:'transparent',color:'var(--dsw-alias-label-secondary, inherit)',cursor:'pointer',touchAction:'manipulation',WebkitTapHighlightColor:'transparent'};
 function dictationIcon(kind){
   const props={width:19,height:19,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true,focusable:false};
   if(kind==='pause')return h('svg',props,h('rect',{x:7,y:5,width:3,height:14,rx:1,fill:'currentColor',stroke:'none'}),h('rect',{x:14,y:5,width:3,height:14,rx:1,fill:'currentColor',stroke:'none'}));
   if(kind==='spinner')return h('svg',{...props,className:'dsh-dictation-spinner'},h('circle',{cx:12,cy:12,r:8,opacity:.2}),h('path',{d:'M12 4a8 8 0 0 1 8 8'}));
+  if(kind==='download')return h('svg',{...props,width:16,height:16},h('path',{d:'M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2'}));
+  if(kind==='trash')return h('svg',{...props,width:16,height:16},h('path',{d:'M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m-9 0 1 14a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-14M10 11v6M14 11v6'}));
   return h('svg',props,h('rect',{x:9,y:3,width:6,height:12,rx:3}),h('path',{d:'M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M9 22h6'}));
 }
 function downloadBlob(blob,name){
@@ -145,7 +148,8 @@ function DictationInput({sessionId,inputActions,locked,onActiveChange,service,co
     },dictationIcon(service.stopping?'spinner':active?'pause':'mic'),!active&&pending>0&&h('span',{'aria-hidden':true,style:{position:'absolute',right:2,top:2,width:5,height:5,borderRadius:'50%',background:'var(--dsw-alias-label-secondary, #888)'}})),
     pending>0&&h('span',{role:'status','aria-live':'polite','aria-label':pending+' 段录音正在后台识别',style:{display:'inline-flex',alignItems:'center',opacity:.5}},h('span',{style:{display:'inline-flex',width:12,height:12}},dictationIcon('spinner'))),
     warning&&h('span',{role:service.error||emergency||service.blocked||(!advancedMode&&failed)?'alert':'status',style:{fontSize:12,lineHeight:'18px',maxWidth:'min(360px, 70vw)',color:service.error||emergency||service.blocked||(!advancedMode&&failed)?'var(--dsw-alias-label-error, #d34b4b)':'var(--dsw-alias-label-secondary, inherit)'}},warning),
-    emergency&&button('下载未保存录音',action(async()=>{await service.stop();downloadBlob(await service.exportAudio(service.currentId,{unsavedOnly:true}),'dictation-unsaved.wav');}),false,{'aria-label':'下载未保存录音，勿刷新页面'})
+    emergency&&h('button',{type:'button',style:iconButton,disabled:busy,onClick:action(async()=>{await service.stop();downloadBlob(await service.exportAudio(service.currentId,{unsavedOnly:true}),'dictation-unsaved.wav');}),'aria-label':'下载未保存录音，勿刷新页面',title:'下载未保存录音'},dictationIcon('download')),
+    emergency&&h('button',{type:'button',style:iconButton,disabled:busy,onClick:action(()=>service.discardUnsaved()),'aria-label':'丢弃未保存录音',title:'丢弃未保存录音'},dictationIcon('trash'))
   );
   return h('div',{style:{display:'inline-flex',flexDirection:'column',alignItems:'flex-start',gap:open?8:0,maxWidth:'100%',width:open?'100%':undefined},'data-dictation-state':service.stopping?'saving':service.starting?'starting':active?'recording':pending?'pending':'idle',onKeyDown:event=>{if(event.key==='Escape'&&open){event.preventDefault();setOpen(false);mic.current?.focus();}}},
     h('style',null,'.dsh-dictation-mic:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12))!important}.dsh-dictation-mic:focus-visible{outline:2px solid var(--dsw-alias-label-primary,#5689df);outline-offset:2px}.dsh-dictation-mic[aria-disabled="true"]{cursor:default}.dsh-dictation-spinner{animation:dsh-dictation-spin 1s linear infinite}@keyframes dsh-dictation-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.dsh-dictation-spinner{animation:none}}'),
@@ -168,7 +172,10 @@ function DictationInput({sessionId,inputActions,locked,onActiveChange,service,co
     h('small',null,'刷新恢复后不会自动重复写入草稿；手动插入前请检查已有文字。意外关闭可能损失最后约 1 秒；清理浏览器数据会删除本地录音。手机锁屏或系统休眠仍可能中断采集。'),
     !service.owner&&service.ready&&h('p',{role:'status'},'本页正在待命。点击麦克风可在其他标签页空闲时接管；正在录音、启动或保存的标签页不会被打断。关闭持有任务的标签页后，本页会自动接管，无需刷新。'),
     (message||service.error)&&h('p',{role:'alert',style:{whiteSpace:'pre-wrap',margin:0}},message||service.error),
-    service.unsaved.length>0&&button('下载未保存录音（请先保存，勿刷新）',action(async()=>{await service.stop();downloadBlob(await service.exportAudio(service.currentId,{unsavedOnly:true}),'dictation-unsaved.wav');})),
+    service.unsaved.length>0&&h('div',{style:rowStyle},
+      button('下载未保存录音（请先保存，勿刷新）',action(async()=>{await service.stop();downloadBlob(await service.exportAudio(service.currentId,{unsavedOnly:true}),'dictation-unsaved.wav');}),busy),
+      button('丢弃未保存录音',action(()=>service.discardUnsaved()),busy)
+    ),
     ...records.map(record=>{
       const chunks=service.chunks.get(record.id)??[];
       const done=chunks.filter(c=>c.status==='done').length,failed=chunks.filter(c=>c.status==='failed');
