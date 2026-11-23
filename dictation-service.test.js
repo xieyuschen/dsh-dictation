@@ -56,3 +56,30 @@ test('transcription requests omit default provider but retain explicit saved pro
     assert.equal(calls[1].providerId,'explicit-provider');assert.equal(calls[1].language,'zh');
   }finally{await service.dispose();globalThis.window=previousWindow;}
 });
+
+test('discardUnsaved clears unsaved audio, resets blocked/error state, and deletes partial recording',async()=>{
+  const deleted=[];
+  let notified=0;
+  const service=Object.create(DictationService.prototype);
+  service.currentId='rec-1';
+  service.unsaved=[{recordingId:'rec-1',audio:new Uint8Array([1,2])}];
+  service.blocked=true;
+  service.error='本地保存失败，已停止继续录音。';
+  service.writes=Promise.resolve();
+  service.closing=false;
+  service.owner=false;
+  service.stop=async()=>{};
+  service.queue={stop:async()=>{},start:async()=>{}};
+  service.store={deleteRecording:async id=>{deleted.push(id);}};
+  service.refresh=async()=>{};
+  service.notify=()=>{notified++;};
+
+  await service.discardUnsaved();
+
+  assert.deepEqual(service.unsaved,[]);
+  assert.equal(service.blocked,false);
+  assert.equal(service.error,'');
+  assert.equal(service.currentId,null);
+  assert.deepEqual(deleted,['rec-1']);
+  assert.equal(notified,1);
+});

@@ -232,6 +232,19 @@ export class DictationService {
     this.notify();
     this.stop().catch(()=>{});
   }
+  async discardUnsaved(id=this.currentId){
+    await this.stop().catch(()=>{});
+    await this.writes.catch(()=>{});
+    this.unsaved=id?this.unsaved.filter(item=>item.recordingId!==id):[];
+    if(!this.unsaved.length){this.blocked=false;this.error='';}
+    if(id){
+      try{await this.queue.stop();await this.store.deleteRecording(id);}catch{}
+      if(this.currentId===id)this.currentId=null;
+    }
+    if(!this.blocked&&!this.closing&&this.owner)this.queue.start().catch(()=>{});
+    await this.refresh().catch(()=>{});
+    this.notify();
+  }
   cancelStart(){this.startGeneration++;this.startupController?.abort(new DOMException('录音启动已取消','AbortError'));this.wakeOwnershipWaiters();}
   async start(sessionId,{providerId='',language='auto',deviceId=''}={}){
     if(this.closing||this.disposed)throw new Error('听写服务已关闭');
