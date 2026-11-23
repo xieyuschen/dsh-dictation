@@ -564,8 +564,9 @@ function DictationConfigPage(props){
 }
 
 function registerUi(ctx){
-  const service=new DictationService(ctx.remote);
   const configForm=ctx.configForms?.get?.('ui-dictation');
+  const persistent=Boolean(configForm?.getSnapshot?.()?.value?.asr?.advancedMode);
+  const service=new DictationService(ctx.remote,{persistent});
   ctx.effect(()=>()=>service.dispose());
   service.initialize();
   ctx.slots.inject('conversation.input.activity',()=>ctx.slots.register({name:'conversation.input.activity',inject:()=>({service,configForm})},DictationInput));

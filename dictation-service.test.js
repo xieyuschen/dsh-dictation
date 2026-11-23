@@ -83,3 +83,20 @@ test('discardUnsaved clears unsaved audio, resets blocked/error state, and delet
   assert.deepEqual(deleted,['rec-1']);
   assert.equal(notified,1);
 });
+
+test('non-persistent service initializes in memory without indexedDB or navigator.locks and skips checkpoints',async()=>{
+  const previousWindow=globalThis.window;globalThis.window=new EventTarget();
+  const service=new DictationService({speech:{catalog:async()=>({ok:true,value:catalog()}),transcribe:async()=>({ok:true,value:{text:'ok'}})}},{persistent:false});
+  let updates=0;
+  const origUpdate=service.store.updateRecording.bind(service.store);
+  service.store.updateRecording=async(...args)=>{updates++;return origUpdate(...args);};
+  try{
+    await service.initialize();
+    assert.equal(service.ready,true);
+    assert.equal(service.owner,true);
+    assert.equal(service.error,'');
+    service.checkpoint('rec-1',new Uint8Array([1,2,3]));
+    await service.writes;
+    assert.equal(updates,0);
+  }finally{await service.dispose();globalThis.window=previousWindow;}
+});

@@ -1,5 +1,5 @@
 import { ContinuousCapture, pcmWave } from './dictation-capture.js';
-import { IndexedDbStore } from './dictation-store.js';
+import { IndexedDbStore, MemoryStore } from './dictation-store.js';
 import { DictationQueue } from './dictation-queue.js';
 
 export async function audioBytes(audio) {
@@ -18,21 +18,21 @@ export function joinedTranscript(chunks) {
 }
 
 export class DictationService {
-  constructor(remote) {
-    this.remote=remote; this.listeners=new Set(); this.records=[]; this.chunks=new Map();
+  constructor(remote, { persistent = true } = {}) {
+    this.remote=remote; this.persistent=persistent; this.listeners=new Set(); this.records=[]; this.chunks=new Map();
     this.ready=false; this.owner=false; this.error=''; this.unsaved=[]; this.writes=Promise.resolve();
     this.startGeneration=0;this.catalog=null;this.catalogWarning='';
     this.tabId=globalThis.crypto?.randomUUID?.()??('dictation-'+Date.now()+'-'+Math.random());
     this.ownershipWaiters=new Set();this.deferOwnershipUntil=0;this.ownerOperation=0;
     this.lockReleased=Promise.resolve();this.releaseLock=()=>{};
-    this.store=new IndexedDbStore();
+    this.store=persistent?new IndexedDbStore():new MemoryStore();
     this.queue=new DictationQueue({store:this.store,transcribe:async(audio,signal,chunk,recording)=>{
       const result=await remote.speech.transcribe({audioBase64:encodeAudio(await audioBytes(audio)),...(recording.selection??{language:'auto'})},signal);
       if(!result.ok) throw new Error(result.error.message);
       return result.value;
     },onStorageError:error=>this.storageFailure(error)});
     this.unsubscribe=this.store.subscribe(()=>this.scheduleRefresh());
-    this.channel=typeof BroadcastChannel==='function'?new BroadcastChannel('dsh-dictation-changed'):null;
+    this.channel=persistent&&typeof BroadcastChannel==='function'?new BroadcastChannel('dsh-dictation-changed'):null;
     if(this.channel)this.channel.onmessage=event=>this.ownershipMessage(event.data);
     this.beforeUnload=event=>{if(this.capture||this.starting||this.unsaved.length){event.preventDefault();event.returnValue='';}};
     window.addEventListener('beforeunload',this.beforeUnload);
@@ -46,8 +46,10 @@ export class DictationService {
     if(this.closing||this.disposed)return Promise.resolve();
     this.initializing=(async()=>{
       try{
-        if(!globalThis.indexedDB)throw new Error('浏览器无法使用本地数据库，不能保证录音保存；录音已禁用');
-        if(!navigator.locks)throw new Error('浏览器不支持跨标签页录音锁，请使用新版浏览器');
+        if(this.persistent){
+          if(!globalThis.indexedDB)throw new Error('浏览器无法使用本地数据库，不能保证录音保存；录音已禁用');
+          if(!navigator.locks)throw new Error('浏览器不支持跨标签页录音锁，请使用新版浏览器');
+        }
         await this.refreshCatalog();
         await this.attemptOwnership();
         if(this.closing||this.disposed)return;
@@ -112,7 +114,7 @@ export class DictationService {
   }
   scheduleOwnershipRetry(){
     clearTimeout(this.ownershipTimer);this.ownershipTimer=null;
-    if(this.closing||this.disposed||this.owner||this.blocked||!navigator.locks)return;
+    if(!this.persistent||this.closing||this.disposed||this.owner||this.blocked||!navigator.locks)return;
     const delay=Math.max(1500,this.deferOwnershipUntil-Date.now()+25);
     this.ownershipTimer=setTimeout(()=>{
       this.ownershipTimer=null;
@@ -122,6 +124,17 @@ export class DictationService {
   attemptOwnership(){
     if(this.closing||this.disposed||this.blocked||this.yielding||Date.now()<this.deferOwnershipUntil)return Promise.resolve(false);
     if(this.owner)return Promise.resolve(true);
+    if(!this.persistent){
+      if(this.acquiring)return this.acquiring;
+      const attempt=(async()=>{
+        this.queue.initialized=false;
+        await this.queue.start();
+        if(!this.closing&&!this.disposed){this.owner=true;this.notify();}
+        return this.owner;
+      })().finally(()=>{if(this.acquiring===attempt)this.acquiring=null;});
+      this.acquiring=attempt;
+      return attempt;
+    }
     if(this.acquiring)return this.acquiring;
     let settled;
     const available=new Promise(resolve=>settled=resolve);
@@ -215,6 +228,7 @@ export class DictationService {
     return this.writes;
   }
   checkpoint(recordingId,audio){
+    if(!this.persistent)return;
     this.serial(async()=>{if(!this.blocked)await this.store.updateRecording(recordingId,{tailAudio:audio,tailUpdatedAt:Date.now()});});
   }
   segment(recordingId,audio){
